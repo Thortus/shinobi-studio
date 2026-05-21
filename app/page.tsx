@@ -2,11 +2,18 @@
 
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth', { method: 'DELETE' });
+    router.push('/login');
+  };
 
   useEffect(() => {
     supabase.from('videos').select('*').order('created_at', { ascending: false }).then(({ data }) => {
@@ -41,6 +48,9 @@ export default function Dashboard() {
             <img src="/Shinobiriselogo_black_nobg.png" alt="ShinobiRise Logo" className="h-16 md:h-20 w-auto" />
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 hidden sm:block">Video Dashboard</h1>
           </div>
+          <button onClick={handleLogout} className="text-slate-400 hover:text-slate-700 text-sm font-medium transition-colors">
+            Sign out
+          </button>
         </header>
         
         <div className="flex flex-wrap gap-5 mb-14">
