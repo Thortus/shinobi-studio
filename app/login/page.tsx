@@ -22,7 +22,7 @@ function LoginForm() {
     });
 
     if (res.ok) {
-      const from = searchParams.get('from') || '/';
+      const from = searchParams.get('from') || '/dashboard';
       router.push(from);
     } else {
       setError('Wrong password');
