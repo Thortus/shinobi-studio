@@ -114,7 +114,7 @@ export default function EnhancePage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">Audio Enhancement Lab</h1>
           </div>
-          <Link href="/" className="bg-white border text-slate-600 font-semibold px-6 py-3 rounded-full hover:bg-slate-50 transition-colors">
+          <Link href="/dashboard" className="bg-white border text-slate-600 font-semibold px-6 py-3 rounded-full hover:bg-slate-50 transition-colors">
             Back to Dashboard
           </Link>
         </header>

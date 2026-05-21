@@ -429,7 +429,7 @@ export default function EditPage({ params }: { params: Promise<{ id: string }> }
       {/* Header */}
       <header className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-[#16161A]">
         <div className="flex items-center gap-4">
-          <Link href="/" className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+          <Link href="/dashboard" className="p-2 hover:bg-white/5 rounded-xl transition-colors">
             <ArrowLeft className="w-5 h-5 text-slate-400" />
           </Link>
           <div className="h-4 w-px bg-white/10 mx-2" />

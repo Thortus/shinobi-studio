@@ -514,7 +514,7 @@ export default function Recorder() {
 
       <div className="max-w-4xl w-full mx-auto bg-white rounded-[40px] shadow-2xl shadow-indigo-900/5 p-8 md:p-12 relative overflow-hidden">
         
-        <a href="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-[#732C3F] transition-colors mb-6 font-medium text-sm">
+        <a href="/dashboard" className="inline-flex items-center gap-2 text-slate-500 hover:text-[#732C3F] transition-colors mb-6 font-medium text-sm">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           Back to Dashboard
         </a>
@@ -818,7 +818,7 @@ export default function Recorder() {
               )}
 
               <button onClick={deleteCurrentVideo} className="bg-white border hover:bg-rose-50 text-rose-600 border-rose-200 transition-colors px-6 py-3 rounded-full font-semibold shadow-sm text-sm">Delete Video</button>
-              <a href="/" className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors px-6 py-3 rounded-full font-semibold shadow-sm text-sm">Dashboard</a>
+              <a href="/dashboard" className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors px-6 py-3 rounded-full font-semibold shadow-sm text-sm">Dashboard</a>
             </div>
 
             <div className="border-t border-green-200 pt-6 mt-4">

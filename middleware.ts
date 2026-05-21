@@ -7,6 +7,7 @@ export function middleware(req: NextRequest) {
 
   // Public: shared video viewer, static assets, auth endpoints
   if (
+    pathname === '/' ||
     pathname.startsWith('/v/') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/auth') ||
