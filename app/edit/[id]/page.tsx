@@ -376,7 +376,7 @@ export default function EditPage({ params }: { params: Promise<{ id: string }> }
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  if (pin === 'shinobi2025') setIsLocked(false);
+                  if (pin === '1984') setIsLocked(false);
                   else alert('Invalid PIN');
                 }
               }}
@@ -387,7 +387,7 @@ export default function EditPage({ params }: { params: Promise<{ id: string }> }
           <div className="flex flex-col w-full gap-3">
              <button 
                onClick={() => {
-                 if (pin === 'shinobi2025') setIsLocked(false);
+                 if (pin === '1984') setIsLocked(false);
                  else alert('Invalid PIN');
                }}
                className="w-full bg-indigo-600 hover:bg-indigo-700 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/20 transition-all hover:scale-[1.01] active:scale-95"

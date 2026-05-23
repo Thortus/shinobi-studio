@@ -398,36 +398,59 @@ export default function Recorder() {
       setLocalBlobUrl(localUrl);
       
       const fileName = `${title.replace(/\s+/g, '-')}-${Date.now()}.webm`;
-      const { error } = await supabase.storage.from('videos').upload(fileName, blob, { upsert: true });
-      if (error) {
+
+      // Get signed upload URL (bypasses RLS)
+      const signRes = await fetch('/api/sign-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName }),
+      });
+      if (!signRes.ok) {
+        const e = await signRes.json();
         setUploading(false);
-        return alert('Upload failed: ' + error.message);
+        return alert('Upload failed: ' + (e.error || signRes.statusText));
+      }
+      const { signedUrl, publicUrl } = await signRes.json();
+
+      // Upload blob directly to Supabase via signed URL
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'video/webm' },
+        body: blob,
+      });
+      if (!uploadRes.ok) {
+        setUploading(false);
+        return alert('Upload failed: storage PUT ' + uploadRes.status);
       }
 
-      const { data: { publicUrl } } = supabase.storage.from('videos').getPublicUrl(fileName);
-      
       if (generateSrt && script.trim()) {
         const vttBlob = createVTT(script);
         const vttFileName = fileName.replace('.webm', '.vtt');
-        await supabase.storage.from('videos').upload(vttFileName, vttBlob, { upsert: true });
+        const vttSignRes = await fetch('/api/sign-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: vttFileName }),
+        });
+        if (vttSignRes.ok) {
+          const { signedUrl: vttUrl } = await vttSignRes.json();
+          await fetch(vttUrl, { method: 'PUT', headers: { 'Content-Type': 'text/vtt' }, body: vttBlob });
+        }
       }
 
       try {
-        const { data: dbData, error: dbError } = await supabase.from('videos').insert({ 
-          title, 
-          video_url: publicUrl,
-          duration: measuredDuration || 0
-        }).select().single();
-
-        if (dbError) throw dbError;
-        if (dbData) {
-          setShareLink(`${window.location.origin}/v/${dbData.id}`);
-          setCurrentVideoId(dbData.id);
-          setCurrentVideoFilename(fileName);
-        }
+        const saveRes = await fetch('/api/save-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, fileName, duration: measuredDuration || 0 }),
+        });
+        if (!saveRes.ok) throw new Error(await saveRes.text());
+        const dbData = await saveRes.json();
+        setShareLink(`${window.location.origin}/v/${dbData.id}`);
+        setCurrentVideoId(dbData.id);
+        setCurrentVideoFilename(fileName);
       } catch (dbErr: any) {
         console.error("DB Insert Error:", dbErr);
-        setShareLink(publicUrl); 
+        setShareLink(publicUrl);
       }
 
       setUploading(false);
@@ -688,15 +711,20 @@ export default function Recorder() {
                     const fileExt = file.name.split('.').pop();
                     const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
                     
-                    const { data, error: uploadError } = await supabase.storage
-                      .from('videos')
-                      .upload(fileName, file);
+                    const signRes = await fetch('/api/sign-upload', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ fileName }),
+                    });
+                    if (!signRes.ok) throw new Error((await signRes.json()).error);
+                    const { signedUrl, publicUrl } = await signRes.json();
 
-                    if (uploadError) throw uploadError;
-
-                    const { data: { publicUrl } } = supabase.storage
-                      .from('videos')
-                      .getPublicUrl(fileName);
+                    const uploadRes = await fetch(signedUrl, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': file.type || 'video/mp4' },
+                      body: file,
+                    });
+                    if (!uploadRes.ok) throw new Error('Storage PUT ' + uploadRes.status);
 
                     // Probe duration
                     const videoTag = document.createElement('video');
@@ -731,17 +759,17 @@ export default function Recorder() {
                       videoTag.load();
                     });
 
-                    const { data: videoData, error: dbError } = await supabase
-                      .from('videos')
-                      .insert({
+                    const saveRes = await fetch('/api/save-video', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
                         title: file.name.replace(/\.[^/.]+$/, ""),
-                        video_url: publicUrl,
-                        duration: uploadedDuration || 0
-                      })
-                      .select()
-                      .single();
-
-                    if (dbError) throw dbError;
+                        fileName,
+                        duration: uploadedDuration || 0,
+                      }),
+                    });
+                    if (!saveRes.ok) throw new Error(await saveRes.text());
+                    const videoData = await saveRes.json();
 
                     setCurrentVideoId(videoData.id);
                     setShareLink(`${window.location.origin}/v/${videoData.id}`);
