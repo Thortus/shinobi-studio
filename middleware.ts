@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 
+export const runtime = 'nodejs';
+
 function sessionToken(password: string): string {
   return createHmac('sha256', password).update('studio-session-v1').digest('hex');
 }
