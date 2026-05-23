@@ -23,7 +23,9 @@ function LoginForm() {
 
     if (res.ok) {
       const from = searchParams.get('from') || '/dashboard';
+      setLoading(false);
       router.push(from);
+      return;
     } else {
       setError('Wrong password');
       setLoading(false);
