@@ -110,8 +110,11 @@ export default function Recorder() {
   }, [logoSrc]);
 
   useEffect(() => {
-    return () => stopStreams();
-  }, []);
+    return () => {
+      stopStreams();
+      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl); // M6
+    };
+  }, [localBlobUrl]);
 
   const uploadThumbnail = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -397,20 +400,19 @@ export default function Recorder() {
       const localUrl = URL.createObjectURL(blob);
       setLocalBlobUrl(localUrl);
       
-      const fileName = `${title.replace(/\s+/g, '-')}-${Date.now()}.webm`;
-
-      // Get signed upload URL (bypasses RLS)
+      // Get signed upload URL — server generates the filename (C3/M5)
       const signRes = await fetch('/api/sign-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName }),
+        body: JSON.stringify({ title, ext: 'webm' }),
       });
       if (!signRes.ok) {
-        const e = await signRes.json();
+        const e = await signRes.json().catch(() => ({}));
         setUploading(false);
+        stopStreams(); // M4
         return alert('Upload failed: ' + (e.error || signRes.statusText));
       }
-      const { signedUrl, publicUrl } = await signRes.json();
+      const { signedUrl, fileName, publicUrl } = await signRes.json();
 
       // Upload blob directly to Supabase via signed URL
       const uploadRes = await fetch(signedUrl, {
@@ -420,20 +422,22 @@ export default function Recorder() {
       });
       if (!uploadRes.ok) {
         setUploading(false);
+        stopStreams(); // M4
         return alert('Upload failed: storage PUT ' + uploadRes.status);
       }
 
       if (generateSrt && script.trim()) {
-        const vttBlob = createVTT(script);
-        const vttFileName = fileName.replace('.webm', '.vtt');
         const vttSignRes = await fetch('/api/sign-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: vttFileName }),
+          body: JSON.stringify({ title, ext: 'vtt' }),
         });
         if (vttSignRes.ok) {
           const { signedUrl: vttUrl } = await vttSignRes.json();
-          await fetch(vttUrl, { method: 'PUT', headers: { 'Content-Type': 'text/vtt' }, body: vttBlob });
+          const vttRes = await fetch(vttUrl, { method: 'PUT', headers: { 'Content-Type': 'text/vtt' }, body: createVTT(script) });
+          if (!vttRes.ok) console.warn('VTT upload failed:', vttRes.status); // H2
+        } else {
+          console.warn('VTT sign failed:', await vttSignRes.text()); // H2
         }
       }
 
@@ -443,14 +447,18 @@ export default function Recorder() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, fileName, duration: measuredDuration || 0 }),
         });
-        if (!saveRes.ok) throw new Error(await saveRes.text());
+        if (!saveRes.ok) {
+          // H3: DB failed — delete orphaned storage object
+          fetch('/api/delete-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName }) }).catch(console.error);
+          throw new Error(await saveRes.text());
+        }
         const dbData = await saveRes.json();
         setShareLink(`${window.location.origin}/v/${dbData.id}`);
         setCurrentVideoId(dbData.id);
         setCurrentVideoFilename(fileName);
       } catch (dbErr: any) {
         console.error("DB Insert Error:", dbErr);
-        setShareLink(publicUrl);
+        alert('Video uploaded but could not be saved. Check console for details.');
       }
 
       setUploading(false);
@@ -708,20 +716,24 @@ export default function Recorder() {
                   
                   setUploading(true);
                   try {
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-                    
+                    // Validate extension (M2)
+                    const rawExt = file.name.split('.').pop()?.toLowerCase() ?? '';
+                    const allowedExts = ['mp4', 'mov', 'webm', 'mkv'];
+                    const ext = allowedExts.includes(rawExt) ? rawExt : 'mp4';
+                    const fileTitle = file.name.replace(/\.[^/.]+$/, '');
+
+                    // Server generates filename (C3/M5)
                     const signRes = await fetch('/api/sign-upload', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ fileName }),
+                      body: JSON.stringify({ title: fileTitle, ext }),
                     });
                     if (!signRes.ok) throw new Error((await signRes.json()).error);
-                    const { signedUrl, publicUrl } = await signRes.json();
+                    const { signedUrl, fileName } = await signRes.json();
 
                     const uploadRes = await fetch(signedUrl, {
                       method: 'PUT',
-                      headers: { 'Content-Type': file.type || 'video/mp4' },
+                      headers: { 'Content-Type': file.type || `video/${ext}` },
                       body: file,
                     });
                     if (!uploadRes.ok) throw new Error('Storage PUT ' + uploadRes.status);
@@ -763,12 +775,16 @@ export default function Recorder() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        title: file.name.replace(/\.[^/.]+$/, ""),
+                        title: fileTitle,
                         fileName,
                         duration: uploadedDuration || 0,
                       }),
                     });
-                    if (!saveRes.ok) throw new Error(await saveRes.text());
+                    if (!saveRes.ok) {
+                      // H3: orphan cleanup
+                      fetch('/api/delete-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName }) }).catch(console.error);
+                      throw new Error(await saveRes.text());
+                    }
                     const videoData = await saveRes.json();
 
                     setCurrentVideoId(videoData.id);
