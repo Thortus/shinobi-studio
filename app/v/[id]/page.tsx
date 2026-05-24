@@ -92,7 +92,7 @@ export default function VideoPage({ params }: { params: Promise<{ id: string }> 
   const [edits, setEdits] = useState<EditProps | null>(null);
   
   // Custom Player State
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -409,7 +409,7 @@ export default function VideoPage({ params }: { params: Promise<{ id: string }> 
               // @ts-ignore — Remotion's LooseComponentType doesn't accept typed props; runtime is correct
               component={MainComposition}
               inputProps={edits}
-              durationInFrames={edits.videoDurationInFrames || 30}
+              durationInFrames={edits.videoDurationInFrames > 0 ? edits.videoDurationInFrames : 1800}
               fps={30}
               compositionWidth={1920}
               compositionHeight={1080}
@@ -422,10 +422,8 @@ export default function VideoPage({ params }: { params: Promise<{ id: string }> 
               onEnded={() => setIsEnded(true)}
             />
           ) : (
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              crossOrigin="anonymous" 
+            <video
+              ref={videoRef}
               className="w-full aspect-video object-contain"
               src={video.video_url}
               onClick={togglePlay}
@@ -465,13 +463,13 @@ export default function VideoPage({ params }: { params: Promise<{ id: string }> 
               }}
               onEnded={() => { setIsPlaying(false); setIsEnded(true); }}
             >
-              {/* Native VTT track is injected but hidden by default, managed by react state in useEffect */}
-              <track 
-                 kind="subtitles" 
-                 src={translatedVttUrl || video.video_url.replace('.webm', '.vtt')} 
-                 srcLang={ccLang === 'English' ? 'en' : 'es'} 
-                 default 
-              />
+              {(translatedVttUrl || video.video_url.endsWith('.webm')) && (
+                <track
+                  kind="subtitles"
+                  src={translatedVttUrl || video.video_url.replace('.webm', '.vtt')}
+                  srcLang={ccLang === 'English' ? 'en' : 'es'}
+                />
+              )}
             </video>
           )}
 
