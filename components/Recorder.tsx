@@ -195,9 +195,12 @@ export default function Recorder() {
             audio: audioConstraints 
           });
         } else {
-          camStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: audioConstraints 
-          }); 
+          // Screen-only: mic is optional — don't abort if denied/not found
+          try {
+            camStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+          } catch {
+            camStream = new MediaStream();
+          }
         }
       } catch (camErr: any) {
         console.error("Camera/Mic Error:", camErr);
@@ -286,8 +289,6 @@ export default function Recorder() {
     }
 
     const drawFrame = () => {
-      if (!isRecording && !mediaRecorderRef.current) return;
-      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // A. Draw background layer
@@ -415,15 +416,16 @@ export default function Recorder() {
       const { signedUrl, fileName, publicUrl } = await signRes.json();
 
       // Upload blob directly to Supabase via signed URL
+      const uploadForm = new FormData();
+      uploadForm.append('', blob, 'recording.webm');
       const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'video/webm' },
-        body: blob,
+        method: 'POST',
+        body: uploadForm,
       });
       if (!uploadRes.ok) {
         setUploading(false);
         stopStreams(); // M4
-        return alert('Upload failed: storage PUT ' + uploadRes.status);
+        return alert('Upload failed: storage ' + uploadRes.status);
       }
 
       if (generateSrt && script.trim()) {
@@ -434,7 +436,10 @@ export default function Recorder() {
         });
         if (vttSignRes.ok) {
           const { signedUrl: vttUrl } = await vttSignRes.json();
-          const vttRes = await fetch(vttUrl, { method: 'PUT', headers: { 'Content-Type': 'text/vtt' }, body: createVTT(script) });
+          const vttBlob = new Blob([createVTT(script)], { type: 'text/vtt' });
+          const vttForm = new FormData();
+          vttForm.append('', vttBlob, 'subtitles.vtt');
+          const vttRes = await fetch(vttUrl, { method: 'POST', body: vttForm });
           if (!vttRes.ok) console.warn('VTT upload failed:', vttRes.status); // H2
         } else {
           console.warn('VTT sign failed:', await vttSignRes.text()); // H2
@@ -731,12 +736,13 @@ export default function Recorder() {
                     if (!signRes.ok) throw new Error((await signRes.json()).error);
                     const { signedUrl, fileName } = await signRes.json();
 
+                    const fileForm = new FormData();
+                    fileForm.append('', file, file.name);
                     const uploadRes = await fetch(signedUrl, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': file.type || `video/${ext}` },
-                      body: file,
+                      method: 'POST',
+                      body: fileForm,
                     });
-                    if (!uploadRes.ok) throw new Error('Storage PUT ' + uploadRes.status);
+                    if (!uploadRes.ok) throw new Error('Storage POST ' + uploadRes.status);
 
                     // Probe duration
                     const videoTag = document.createElement('video');
