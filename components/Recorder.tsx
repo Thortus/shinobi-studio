@@ -416,17 +416,16 @@ export default function Recorder() {
       const { signedUrl, fileName, publicUrl } = await signRes.json();
 
       // Upload blob directly to Supabase via signed URL
-      const uploadForm = new FormData();
-      uploadForm.append('cacheControl', '3600');
-      uploadForm.append('', blob, 'recording.webm');
       const uploadRes = await fetch(signedUrl, {
         method: 'PUT',
-        body: uploadForm,
+        body: blob,
+        headers: { 'Content-Type': 'video/webm', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
       });
       if (!uploadRes.ok) {
+        const errBody = await uploadRes.text().catch(() => '');
         setUploading(false);
         stopStreams(); // M4
-        return alert('Upload failed: storage ' + uploadRes.status);
+        return alert('Upload failed: storage ' + uploadRes.status + ' ' + errBody);
       }
 
       if (generateSrt && script.trim()) {
@@ -438,10 +437,11 @@ export default function Recorder() {
         if (vttSignRes.ok) {
           const { signedUrl: vttUrl } = await vttSignRes.json();
           const vttBlob = new Blob([createVTT(script)], { type: 'text/vtt' });
-          const vttForm = new FormData();
-          vttForm.append('cacheControl', '3600');
-          vttForm.append('', vttBlob, 'subtitles.vtt');
-          const vttRes = await fetch(vttUrl, { method: 'PUT', body: vttForm });
+          const vttRes = await fetch(vttUrl, {
+            method: 'PUT',
+            body: vttBlob,
+            headers: { 'Content-Type': 'text/vtt', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
+          });
           if (!vttRes.ok) console.warn('VTT upload failed:', vttRes.status); // H2
         } else {
           console.warn('VTT sign failed:', await vttSignRes.text()); // H2
@@ -738,14 +738,15 @@ export default function Recorder() {
                     if (!signRes.ok) throw new Error((await signRes.json()).error);
                     const { signedUrl, fileName } = await signRes.json();
 
-                    const fileForm = new FormData();
-                    fileForm.append('cacheControl', '3600');
-                    fileForm.append('', file, file.name);
                     const uploadRes = await fetch(signedUrl, {
                       method: 'PUT',
-                      body: fileForm,
+                      body: file,
+                      headers: { 'Content-Type': file.type || 'video/webm', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
                     });
-                    if (!uploadRes.ok) throw new Error('Storage PUT ' + uploadRes.status);
+                    if (!uploadRes.ok) {
+                      const eb = await uploadRes.text().catch(() => '');
+                      throw new Error('Storage PUT ' + uploadRes.status + ' ' + eb);
+                    }
 
                     // Probe duration
                     const videoTag = document.createElement('video');
