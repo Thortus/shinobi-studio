@@ -398,9 +398,16 @@ export default function Recorder() {
       const measuredDurationRaw = (Date.now() - recordingStartTimeRef.current) / 1000;
       const measuredDuration = (isFinite(measuredDurationRaw) && measuredDurationRaw > 0) ? measuredDurationRaw : 0;
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+
+      if (blob.size === 0) {
+        setUploading(false);
+        stopStreams();
+        return alert('Recording produced no data — try again.');
+      }
+
       const localUrl = URL.createObjectURL(blob);
       setLocalBlobUrl(localUrl);
-      
+
       // Get signed upload URL — server generates the filename (C3/M5)
       const signRes = await fetch('/api/sign-upload', {
         method: 'POST',
@@ -413,19 +420,16 @@ export default function Recorder() {
         stopStreams(); // M4
         return alert('Upload failed: ' + (e.error || signRes.statusText));
       }
-      const { signedUrl, fileName, publicUrl } = await signRes.json();
+      const { token, fileName, publicUrl } = await signRes.json();
 
-      // Upload blob directly to Supabase via signed URL
-      const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
-        body: blob,
-        headers: { 'Content-Type': 'video/webm', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
-      });
-      if (!uploadRes.ok) {
-        const errBody = await uploadRes.text().catch(() => '');
+      // Upload via SDK (handles multipart + auth headers correctly)
+      const { error: uploadError } = await supabase.storage
+        .from('videos')
+        .uploadToSignedUrl(fileName, token, blob, { contentType: 'video/webm', upsert: false });
+      if (uploadError) {
         setUploading(false);
         stopStreams(); // M4
-        return alert('Upload failed: storage ' + uploadRes.status + ' ' + errBody);
+        return alert('Upload failed: ' + uploadError.message);
       }
 
       if (generateSrt && script.trim()) {
@@ -435,14 +439,12 @@ export default function Recorder() {
           body: JSON.stringify({ title, ext: 'vtt' }),
         });
         if (vttSignRes.ok) {
-          const { signedUrl: vttUrl } = await vttSignRes.json();
+          const { token: vttToken, fileName: vttFileName } = await vttSignRes.json();
           const vttBlob = new Blob([createVTT(script)], { type: 'text/vtt' });
-          const vttRes = await fetch(vttUrl, {
-            method: 'PUT',
-            body: vttBlob,
-            headers: { 'Content-Type': 'text/vtt', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
-          });
-          if (!vttRes.ok) console.warn('VTT upload failed:', vttRes.status); // H2
+          const { error: vttErr } = await supabase.storage
+            .from('videos')
+            .uploadToSignedUrl(vttFileName, vttToken, vttBlob, { contentType: 'text/vtt', upsert: false });
+          if (vttErr) console.warn('VTT upload failed:', vttErr.message); // H2
         } else {
           console.warn('VTT sign failed:', await vttSignRes.text()); // H2
         }
@@ -483,6 +485,7 @@ export default function Recorder() {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.requestData(); // flush final chunk before stop
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
@@ -736,17 +739,12 @@ export default function Recorder() {
                       body: JSON.stringify({ title: fileTitle, ext }),
                     });
                     if (!signRes.ok) throw new Error((await signRes.json()).error);
-                    const { signedUrl, fileName } = await signRes.json();
+                    const { token, fileName } = await signRes.json();
 
-                    const uploadRes = await fetch(signedUrl, {
-                      method: 'PUT',
-                      body: file,
-                      headers: { 'Content-Type': file.type || 'video/webm', 'cache-control': 'max-age=3600', 'x-upsert': 'false' },
-                    });
-                    if (!uploadRes.ok) {
-                      const eb = await uploadRes.text().catch(() => '');
-                      throw new Error('Storage PUT ' + uploadRes.status + ' ' + eb);
-                    }
+                    const { error: uploadError } = await supabase.storage
+                      .from('videos')
+                      .uploadToSignedUrl(fileName, token, file, { contentType: file.type || 'video/webm', upsert: false });
+                    if (uploadError) throw new Error('Storage upload: ' + uploadError.message);
 
                     // Probe duration
                     const videoTag = document.createElement('video');

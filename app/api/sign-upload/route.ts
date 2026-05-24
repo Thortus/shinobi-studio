@@ -27,5 +27,5 @@ export async function POST(req: NextRequest) {
 
   const { data: { publicUrl } } = admin.storage.from('videos').getPublicUrl(fileName);
 
-  return NextResponse.json({ signedUrl: data.signedUrl, fileName, publicUrl });
+  return NextResponse.json({ signedUrl: data.signedUrl, token: data.token, fileName, publicUrl });
 }
