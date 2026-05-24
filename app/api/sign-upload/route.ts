@@ -11,7 +11,7 @@ function safeSlug(title: string): string {
 export async function POST(req: NextRequest) {
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SECRET_KEYS_SUPABASE!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const { title, ext } = await req.json();

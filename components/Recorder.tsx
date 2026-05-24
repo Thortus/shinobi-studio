@@ -417,9 +417,10 @@ export default function Recorder() {
 
       // Upload blob directly to Supabase via signed URL
       const uploadForm = new FormData();
+      uploadForm.append('cacheControl', '3600');
       uploadForm.append('', blob, 'recording.webm');
       const uploadRes = await fetch(signedUrl, {
-        method: 'POST',
+        method: 'PUT',
         body: uploadForm,
       });
       if (!uploadRes.ok) {
@@ -438,8 +439,9 @@ export default function Recorder() {
           const { signedUrl: vttUrl } = await vttSignRes.json();
           const vttBlob = new Blob([createVTT(script)], { type: 'text/vtt' });
           const vttForm = new FormData();
+          vttForm.append('cacheControl', '3600');
           vttForm.append('', vttBlob, 'subtitles.vtt');
-          const vttRes = await fetch(vttUrl, { method: 'POST', body: vttForm });
+          const vttRes = await fetch(vttUrl, { method: 'PUT', body: vttForm });
           if (!vttRes.ok) console.warn('VTT upload failed:', vttRes.status); // H2
         } else {
           console.warn('VTT sign failed:', await vttSignRes.text()); // H2
@@ -737,12 +739,13 @@ export default function Recorder() {
                     const { signedUrl, fileName } = await signRes.json();
 
                     const fileForm = new FormData();
+                    fileForm.append('cacheControl', '3600');
                     fileForm.append('', file, file.name);
                     const uploadRes = await fetch(signedUrl, {
-                      method: 'POST',
+                      method: 'PUT',
                       body: fileForm,
                     });
-                    if (!uploadRes.ok) throw new Error('Storage POST ' + uploadRes.status);
+                    if (!uploadRes.ok) throw new Error('Storage PUT ' + uploadRes.status);
 
                     // Probe duration
                     const videoTag = document.createElement('video');
